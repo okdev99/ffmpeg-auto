@@ -38,10 +38,13 @@ max_framerate=
 min_framerate=
 max_resolution=
 options=
+scale=
 
 TEMP=$(getopt --options hd:o: --longoptions help,destination:,origin:,max-framerate:,min-framerate:,max-resolution: -n 'ffmpeg-auto' -- "$@")
 
-if [ $? != 0 ]; then
+exit_code=$?
+
+if [ $exit_code != 0 ]; then
     echo "Getopt failed. Terminating." >&2;
     exit 1;
 fi
@@ -96,6 +99,9 @@ done
 origin="$origin""/*"
 
 for filename in $origin; do
+    unset scale
+    unset options
+
     aspect_ratio_string=$(getDisplayAspectRatioString "$filename")
 
     aspect_ratio=$(getDisplayAspectRatio "$filename")
@@ -118,14 +124,48 @@ for filename in $origin; do
     fi
 
     #Check if a video needs formatting, and if not then move to corresponding "not_formatted folder"
-    if true; then
+    if false; then
         #move the video to the corresponding folder or copy it
         continue
     fi
 
     #Determine the necessary options for the video
+    #if variable is not empty
+    if [ -n "$max_framerate" ] && ((max_framerate < framerate)); then
+        options="fps=""$max_framerate"
+    elif [ -n "$min_framerate" ] && ((min_framerate > framerate)); then
+        options="fps=""$min_framerate"
+    fi
 
+    if [ -n "$max_resolution" ]; then
+        if ((height < width)) && ((height > max_resolution)); then
+            tmp_width=$(echo "$aspect_ratio*$max_resolution" | bc)
+            width=${tmp_width%.*}
+            if ((width % 2 != 0)); then
+                ((width++))
+            fi
+            scale="$width:$max_resolution"
+        elif ((width <= height)) && ((width > max_resolution)); then
+            tmp_height=$(echo "$max_resolution/$aspect_ratio" | bc)
+            height=${tmp_height%.*}
+            if ((height % 2 != 0)); then
+                ((height--))
+            fi
+            scale="$max_resolution:$height"
+        fi
 
+        if [ -n "$scale" ]; then
+            if [ -n "$options" ]; then
+                options="$options"",scale=""$scale"
+            else
+                options="scale=""$scale"
+            fi
+        fi
+    fi
+
+    if [ -n "$options" ]; then
+        options="-vf ""$options"
+    fi
 
     echo ffmpeg -i "$filename" "$options" "$destination""/""$aspect_ratio_string""/formatted/""${filename##*/}"
 done
