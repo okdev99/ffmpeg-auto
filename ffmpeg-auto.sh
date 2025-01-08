@@ -52,14 +52,11 @@ fi
 # Note the quotes around '$TEMP': they are essential!
 eval set -- "$TEMP"
 
-# Possible options
-# --max-framerate
-# --min-framerate
-# --max-resolution (is inputted as 1280:720, but if only inputted 720, then whatever is the smallest of the resolution component is formatted to 720, for example: 1920:1080 -> 1280:720)
-# --max-width
-# --max-height
-#
-# Think of a way to convey the option of smallest width/height like formatting 2d video to 720p
+#Create options for reacting with a specific aspect ratio for example:
+# --ratio-2.0-max-resolution=2048
+# --ratio-16:9-max-resolution=720
+# --ratio-1.0-max-resolution=3400
+# --ratio-9:16-max-resolution=720
 
 while true; do
   case $1 in
@@ -92,13 +89,15 @@ while true; do
         ;;
     * ) break
         ;;
-    
   esac
 done
 
 origin="$origin""/*"
 
 for filename in $origin; do
+
+    #CHECK HERE IF filename HAS THE CORRECT EXTENSIONS
+
     unset scale
     unset options
 
@@ -123,9 +122,11 @@ for filename in $origin; do
         #echo "Folder not created! Cause: $filename"
     fi
 
+    #MAKE SOME WAY FOR THIS CONDITIONAL TO WORK PROPERLY WHEN OPTIONS ARE NOT SET!!!!
     #Check if a video needs formatting, and if not then move to corresponding "not_formatted folder"
-    if false; then
+    if ((max_framerate >= framerate)) && ((max_resolution >= width)) && ((max_resolution >= height)) && ((min_framerate <= framerate)); then
         #move the video to the corresponding folder or copy it
+        echo mv "$filename" "$destination""/""$aspect_ratio_string""/not_formatted/""${filename##*/}"
         continue
     fi
 
@@ -141,16 +142,21 @@ for filename in $origin; do
         if ((height < width)) && ((height > max_resolution)); then
             tmp_width=$(echo "$aspect_ratio*$max_resolution" | bc)
             width=${tmp_width%.*}
+
             if ((width % 2 != 0)); then
                 ((width++))
             fi
+
             scale="$width:$max_resolution"
+
         elif ((width <= height)) && ((width > max_resolution)); then
             tmp_height=$(echo "$max_resolution/$aspect_ratio" | bc)
             height=${tmp_height%.*}
+
             if ((height % 2 != 0)); then
                 ((height--))
             fi
+
             scale="$max_resolution:$height"
         fi
 
@@ -162,6 +168,8 @@ for filename in $origin; do
             fi
         fi
     fi
+
+    #Consider making a option for constant rate factor
 
     if [ -n "$options" ]; then
         options="-vf ""$options"
