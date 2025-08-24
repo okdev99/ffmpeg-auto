@@ -50,13 +50,18 @@ ffmpeg_supported_extensions=("str" "aa" "aac" "aax" "ac3" "acm" "adf" "adp" "dtk
 origin="."
 destination="."
 
+if [ -z "$1" ]; then
+    echo -e "\e[1;33mNo argument given!\e[0m"
+    exit 1
+fi
+
 TEMP=$(getopt --options hd:o: --longoptions help,destination:,origin:,max-framerate:,min-framerate:,max-resolution:,ratio-16:9-max-resolution:,ratio-9:16-max-resolution:,ratio-1-max-resolution:,ratio-2-max-resolution: -n 'ffmpeg-auto' -- "$@")
 
 exit_code=$?
 
 if [ $exit_code != 0 ]; then
-    echo "Getopt failed. Terminating." >&2;
-    exit 1;
+    echo -e "\e[31mGetopt failed. Terminating.\e[0m" >&2;
+    exit 1
 fi
 
 # Note the quotes around '$TEMP': they are essential!
@@ -136,11 +141,11 @@ while true; do
 done
 
 if [ -n "$max_framerate" ] && [ -n "$min_framerate" ] && ((max_framerate < min_framerate)); then
-    echo "Min framerate cannot be higher than max framerate!"
+    echo -e "\e[1;33mMin framerate cannot be higher than max framerate!\e[0m"
     exit 1
 fi
 
-if [ ! "${origin:0-1}" = "/" ]; then
+if [ ! "${origin:0-1}" == "/" ]; then
     origin="$origin""/*"
 else
     origin="$origin""*"
@@ -159,6 +164,7 @@ for filename in $origin; do
     aspect_ratio_string=$(getDisplayAspectRatioString "$filename")
 
 	# This command should be moved to the function
+    #             |------------------------------------------------|          
     aspect_ratio=$(echo "$(getDisplayAspectRatio "$filename")" | bc)
 
     width=$(getWidth "$filename")
@@ -172,37 +178,6 @@ for filename in $origin; do
         mkdir "$destination""/""$aspect_ratio_string""/not_formatted"
     fi
 
-    # HOX HOX HOX!
-    # THIS DOES NOT WORK PROPERLY WITH RATIO SPECIFIC RESOLUTIONS, WHEN max-resolution IS SET!!!!
-    # SOME ISSUE IN LOGIC!!!
-
-    # USE PEN AND PAPER TO SKETCH THE LOGIC OF THIS ABOMINATION OF A IF STATEMENT!!!!!!!!!!
-
-    #
-    # Check if a video needs formatting, and if not then move to corresponding "not_formatted folder"
-    # Each line checks first if option does not exist, so that using or || operator we can move to the next
-    # conditional only when previous failed, so true positive result is flipped to false result so this conditional works.
-    if ( [ -z "$max_framerate" ] || ((max_framerate >= framerate)) ) &&
-    ( [ -z "$min_framerate" ] || ((min_framerate <= framerate))) &&
-    (
-        (
-            ( [ -z "$ratio_1_max_resolution" ] || ( (( $(echo "$aspect_ratio != 1" | bc -l) )) || ((ratio_1_max_resolution >= height)) ) ) &&
-            ( [ -z "$ratio_2_max_resolution" ] || ( (( $(echo "$aspect_ratio != 2" | bc -l) )) || ((ratio_2_max_resolution >= height)) ) ) &&
-            ( [ -z "$ratio_169_max_resolution" ] || ( (( $(echo "$aspect_ratio != 1.778" | bc -l) )) || ((ratio_169_max_resolution >= height)) ) ) &&
-            ( [ -z "$ratio_916_max_resolution" ] || ( (( $(echo "$aspect_ratio != 0.562" | bc -l) )) || ((ratio_916_max_resolution >= width)) ) ) &&
-            ( [ -z "$ratio_43_max_resolution" ] || ( (( $(echo "$aspect_ratio != 1.333" | bc -l) )) || ((ratio_43_max_resolution >= height)) ) ) &&
-            ( [ -z "$ratio_34_max_resolution" ] || ( (( $(echo "$aspect_ratio != 0.75" | bc -l) )) || ((ratio_34_max_resolution >= width)) ) )
-        ) || (
-            ( [ -z "$max_resolution" ] || ( ((max_resolution >= width)) || ((width > height)) ) ) &&
-            ( [ -z "$max_resolution" ] || ( ((max_resolution >= height)) || ((width < height)) ) )
-        )
-    ); then
-		# this is echo for testing
-        # move the video to the corresponding folder or copy it
-        echo mv "$filename" "$destination""/""$aspect_ratio_string""/not_formatted/""${filename##*/}"
-        continue
-    fi
-
     # Determine the necessary options for the video
     # if variable is not empty
     if [ -n "$max_framerate" ] && ((max_framerate < framerate)); then
@@ -212,7 +187,7 @@ for filename in $origin; do
     fi
 
     # Check here for different ratio options and if they fail move to max_resolution
-    if [ -n "$ratio_1_max_resolution" ] && ((aspect_ratio = 1)); then
+    if [ -n "$ratio_1_max_resolution" ] && (( $(echo "$aspect_ratio == 1" | bc -l) )); then
         if ((ratio_1_max_resolution < width)); then
             tmp_width="$ratio_1_max_resolution"
             width=${tmp_width%.*}
@@ -222,7 +197,7 @@ for filename in $origin; do
             fi
             scale="$width:$width"
         fi
-    elif [ -n "$ratio_2_max_resolution" ] && ((aspect_ratio = 2)); then
+    elif [ -n "$ratio_2_max_resolution" ] && (( $(echo "$aspect_ratio == 2" | bc -l) )); then 
         if ((ratio_2_max_resolution < height)); then
             tmp_width=$(echo "$aspect_ratio*$ratio_2_max_resolution" | bc)
             width=${tmp_width%.*}
@@ -253,7 +228,6 @@ for filename in $origin; do
             fi
 
             scale="$ratio_916_max_resolution:$height"
-
         fi
     elif [ -n "$ratio_43_max_resolution" ] && (( $(echo "$aspect_ratio == 1.333" | bc -l) )); then
         if ((ratio_43_max_resolution < height)); then
@@ -276,7 +250,6 @@ for filename in $origin; do
             fi
 
             scale="$ratio_34_max_resolution:$height"
-
         fi
     elif [ -n "$max_resolution" ]; then
         if ((height < width)) && ((height > max_resolution)); then
@@ -311,6 +284,9 @@ for filename in $origin; do
 
     if [ -n "$options" ]; then
         options="-vf ""$options"
+    else
+        echo mv "$filename" "$destination""/""$aspect_ratio_string""/not_formatted/""${filename##*/}"
+        continue
     fi
 
 	# This is echo for testing
@@ -318,7 +294,7 @@ for filename in $origin; do
 	exit_code="$?"
 
     if [ $exit_code != 0 ]; then
-        echo "Ffmpeg did not exit normally. Ffmpeg exit code: $exit_code"
+        echo -e "\e[31mFfmpeg did not exit normally!\e[0m"" Ffmpeg exit code: $exit_code"
         exit 1
     fi
     # Consider making here a delete from origin if the specific option is set, so no duplicates are created and only formatted files remain.
