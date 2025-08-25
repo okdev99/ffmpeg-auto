@@ -1,7 +1,7 @@
 #!/bin/bash
 
 showHelp() {
-    #also include a tip for using the program. Like recommended to only use
+    # also include a tip for using the program. Like recommended to only use etc.
     echo "Usage: $0 [OPTION...]"
     echo
     echo "  -h, --help                          show this help text"
@@ -14,6 +14,8 @@ showHelp() {
     echo "      --ratio-9:16-max-resolution     maximum resolution for only 9:16 ratio video"
     echo "      --ratio-1-max-resolution        maximum resolution for only 1.0 ratio video"
     echo "      --ratio-2-max-resolution        maximum resolution for only 2.0 ratio video"
+    echo "      --ratio-4:3-max-resolution      maximum resolution for only 4:3 ratio video"
+    echo "      --ratio-3:4-max-resolution      maximum resolution for only 3:4 ratio video"
     echo
     echo "If maximum resolution or framerate is exceeded then a new option is inlcuded that set the formatted video"
     echo "to the maximum specified. The same happens with minimum framerate, but just the otherway."
@@ -40,8 +42,8 @@ getHeight() {
 }
 
 getFramerate() {
-    #FrameRate -> string ex. 60.000
-    #FrameRate_Num -> number ex. 60
+    # FrameRate -> string ex. "60.000"
+    # FrameRate_Num -> number ex. 60
     mediainfo --Inform="Video;%FrameRate_Num%" "$1"
 }
 
@@ -51,7 +53,7 @@ origin="."
 destination="."
 
 if [ -z "$1" ]; then
-    echo -e "\e[1;33mNo argument given!\e[0m"
+    echo -e "\e[1;33mNo argument given!\e[0m" >&2
     exit 1
 fi
 
@@ -79,8 +81,6 @@ eval set -- "$TEMP"
 
 # An option for custom ratio with a specific resolution. Can be invoked multiple times, each invokation adds to two arrays:
 # custom_ratios, and custom_resolutions, where custom_ratios index is the same as custom_resolutions
-
-# Make new options for ratio-4:3 and ratio-3:4
 
 while true; do
   case $1 in
@@ -140,8 +140,13 @@ while true; do
   esac
 done
 
+if [ -z "$max_framerate" ] && [ -z "$min_framerate" ] && [ -z "$max_resolution" ] && [ -z "$ratio_1_max_resolution" ] && [ -z "$ratio_2_max_resolution" ] && [ -z "$ratio_169_max_resolution" ] && [ -z "$ratio_916_max_resolution" ] && [ -z "$ratio_43_max_resolution" ] && [ -z "$ratio_34_max_resolution" ]; then
+    echo -e "\e[1;33mNo options given!\e[0m" >&2
+    exit 1
+fi
+
 if [ -n "$max_framerate" ] && [ -n "$min_framerate" ] && ((max_framerate < min_framerate)); then
-    echo -e "\e[1;33mMin framerate cannot be higher than max framerate!\e[0m"
+    echo -e "\e[1;33mMin framerate cannot be higher than max framerate!\e[0m" >&2
     exit 1
 fi
 
@@ -153,7 +158,7 @@ fi
 
 for filename in $origin; do
 
-    #CHECK HERE IF filename HAS THE CORRECT EXTENSIONS
+    # check if filename has the correct extension and if not then just skip it
     if ! echo "${ffmpeg_supported_extensions[@]}" | grep -qw "${filename##*.}"; then
 		continue
 	fi
@@ -164,7 +169,7 @@ for filename in $origin; do
     aspect_ratio_string=$(getDisplayAspectRatioString "$filename")
 
 	# This command should be moved to the function
-    #             |------------------------------------------------|          
+    #             |------------------------------------------------|
     aspect_ratio=$(echo "$(getDisplayAspectRatio "$filename")" | bc)
 
     width=$(getWidth "$filename")
@@ -179,7 +184,6 @@ for filename in $origin; do
     fi
 
     # Determine the necessary options for the video
-    # if variable is not empty
     if [ -n "$max_framerate" ] && ((max_framerate < framerate)); then
         options="fps=""$max_framerate"
     elif [ -n "$min_framerate" ] && ((min_framerate > framerate)); then
@@ -187,6 +191,7 @@ for filename in $origin; do
     fi
 
     # Check here for different ratio options and if they fail move to max_resolution
+	# bc is used here, because aspect_ratio uses has a string with a decimal, like 1.000, so bc has to be used since normal bash doesn't parse it correctly
     if [ -n "$ratio_1_max_resolution" ] && (( $(echo "$aspect_ratio == 1" | bc -l) )); then
         if ((ratio_1_max_resolution < width)); then
             tmp_width="$ratio_1_max_resolution"
@@ -285,6 +290,7 @@ for filename in $origin; do
     if [ -n "$options" ]; then
         options="-vf ""$options"
     else
+        # This is echo for testing
         echo mv "$filename" "$destination""/""$aspect_ratio_string""/not_formatted/""${filename##*/}"
         continue
     fi
@@ -294,7 +300,7 @@ for filename in $origin; do
 	exit_code="$?"
 
     if [ $exit_code != 0 ]; then
-        echo -e "\e[31mFfmpeg did not exit normally!\e[0m"" Ffmpeg exit code: $exit_code"
+        echo -e "\e[31mFfmpeg did not exit normally!\e[0m"" Ffmpeg exit code: $exit_code" >&2
         exit 1
     fi
     # Consider making here a delete from origin if the specific option is set, so no duplicates are created and only formatted files remain.
