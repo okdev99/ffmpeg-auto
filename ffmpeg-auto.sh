@@ -53,8 +53,8 @@ origin="."
 destination="."
 
 if [ -z "$1" ]; then
-    echo -e "\e[1;33mNo argument given!\e[0m" >&2
-    exit 1
+    showHelp
+    exit 0
 fi
 
 TEMP=$(getopt --options hd:o: --longoptions help,destination:,origin:,max-framerate:,min-framerate:,max-resolution:,ratio-16:9-max-resolution:,ratio-9:16-max-resolution:,ratio-1-max-resolution:,ratio-2-max-resolution: -n 'ffmpeg-auto' -- "$@")
@@ -290,13 +290,11 @@ for filename in $origin; do
     if [ -n "$options" ]; then
         options="-vf ""$options"
     else
-        # This is echo for testing
-        echo mv "$filename" "$destination""/""$aspect_ratio_string""/not_formatted/""${filename##*/}"
+        cp "$filename" "$destination""/""$aspect_ratio_string""/not_formatted/""${filename##*/}"
         continue
     fi
 
-	# This is echo for testing
-    echo ffmpeg -i "$filename" $options "$destination""/""$aspect_ratio_string""/formatted/""${filename##*/}"
+    ffmpeg -i "$filename" $options "$destination""/""$aspect_ratio_string""/formatted/""${filename##*/}"
 	exit_code="$?"
 
     if [ $exit_code != 0 ]; then
