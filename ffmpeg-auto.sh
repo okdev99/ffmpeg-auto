@@ -66,7 +66,6 @@ if [ $exit_code != 0 ]; then
     exit 1
 fi
 
-# Note the quotes around '$TEMP': they are essential!
 eval set -- "$TEMP"
 
 # It could be possible to use a custom ratio, by snipping the option --ratio-RATIO-max-resolution=xxxx.
@@ -81,6 +80,12 @@ eval set -- "$TEMP"
 
 # An option for custom ratio with a specific resolution. Can be invoked multiple times, each invokation adds to two arrays:
 # custom_ratios, and custom_resolutions, where custom_ratios index is the same as custom_resolutions
+
+# Add options for:
+# - determining if a user wants to delete the original file
+# - if user wants to move the non-formatted files instead of copying them
+# - crf either implement this with just using certain crf value or/and aim for some specific bit rate
+# - custom ratios, see above for ideas
 
 while true; do
   case $1 in
@@ -291,6 +296,13 @@ for filename in $origin; do
         options="-vf ""$options"
     else
         cp "$filename" "$destination""/""$aspect_ratio_string""/not_formatted/""${filename##*/}"
+        exit_code="$?"
+
+        if [ $exit_code != 0 ]; then
+            echo -e "\e[31mCp did not exit normally!\e[0m"" Copy exit code: $exit_code" >&2
+            exit 1
+
+    fi
         continue
     fi
 
