@@ -12,9 +12,12 @@ Necessary programs:
 Program help blurp:
 ```
 Usage: ffmpeg-auto [OPTION...]
+
   -h, --help                          show this help text
   -d, --destination                   select destination directory, default is current directory
   -o, --origin                        select origin directory, default is current directory
+  -e, --erase                         erase the original file of the formatted files
+  -m, --move                          move the unformatted files instead of copying them
       --max-framerate                 maximum framerate
       --min-framerate                 minimun framerate
       --max-resolution                maximum resolution
