@@ -7,6 +7,8 @@ showHelp() {
     echo "  -h, --help                          show this help text"
     echo "  -d, --destination                   select destination directory, default is current directory"
     echo "  -o, --origin                        select origin directory, default is current directory"
+    echo "  -e, --erase                         erase the original file of the formatted files"
+    echo "  -m, --move                          move the unformatted files instead of copying them"
     echo "      --max-framerate                 maximum framerate"
     echo "      --min-framerate                 minimun framerate"
     echo "      --max-resolution                maximum resolution"
@@ -47,8 +49,14 @@ getFramerate() {
     mediainfo --Inform="Video;%FrameRate_Num%" "$1"
 }
 
+getBitrate() {
+	mediainfo --inform="Video;%BitRate%" "$1"
+}
+
 ffmpeg_supported_extensions=("str" "aa" "aac" "aax" "ac3" "acm" "adf" "adp" "dtk" "ads" "ss2" "adx" "aea" "afc" "aix" "al" "ape" "apl" "mac" "aptx" "aptxhd" "aqt" "ast" "obu" "avi" "avr" "avs" "avs2" "avs3" "bfstm" "bcstm" "binka" "bit" "bitpacked" "bmv" "brstm" "cdg" "cdxl" "xl" "c2" "302" "daud" "dfpwm" "dav" "dss" "dts" "dtshd" "dv" "dif" "cdata" "eac3" "paf" "fap" "flm" "flac" "flv" "fsb" "fwse" "g722" "722" "tco" "rco" "g723_1" "g729" "genh" "gsm" "h261" "h26l" "h264" "264" "avc" "hca" "hevc" "h265" "265" "idf" "ifv" "cgi" "ipu" "sf" "ircam" "ivr" "kux" "669" "amf" "ams" "dbm" "digi" "dmf" "dsm" "dtm" "far" "gdm" "ice" "imf" "it" "j2b" "m15" "mdl" "med" "mmcmp" "mms" "mo3" "mod" "mptm" "mt2" "mtm" "nst" "okt" "plm" "ppm" "psm" "pt36" "sptm" "s3m" "sfx" "sfx2" "st26" "stk" "stm" "stp" "ult" "umx" "wow" "xm" "xpk" "dat" "lvf" "m4v" "mkv" "mk3d" "mka" "mks" "webm" "mca" "mcc" "mjpg" "mjpeg" "mpo" "j2k" "mlp" "mods" "moflex" "mov" "mp4" "m4a" "3gp" "3g2" "mj2" "psp" "m4b" "ism" "ismv" "isma" "f4v" "avif" "mp2" "mp3" "m2a" "mpa" "mpc" "mpl2" "sub" "msf" "mtaf" "ul" "musx" "mvi" "mxg" "v" "nist" "sph" "nsp" "nut" "ogg" "oma" "omg" "aa3" "pjs" "pvf" "yuv" "cif" "qcif" "rgb" "rt" "rsd" "rsd" "rso" "sw" "sb" "smi" "sami" "sbc" "msbc" "sbg" "scc" "sdr2" "sds" "sdx" "ser" "sga" "shn" "vb" "son" "imx" "sln" "stl" "sub" "sub" "sup" "svag" "svs" "tak" "thd" "tta" "ans" "art" "asc" "diz" "ice" "nfo" "vt" "ty" "ty+" "uw" "ub" "v210" "yuv10" "vag" "vc1" "rcv" "viv" "idx" "vpk" "txt" "vqf" "vql" "vqe" "vtt" "wsd" "xmv" "xvag" "yop" "y4m" "wav")
 
+erase_original=false
+move=false
 origin="."
 destination="."
 
@@ -57,7 +65,7 @@ if [ -z "$1" ]; then
     exit 0
 fi
 
-TEMP=$(getopt --options hd:o: --longoptions help,destination:,origin:,max-framerate:,min-framerate:,max-resolution:,ratio-16:9-max-resolution:,ratio-9:16-max-resolution:,ratio-1-max-resolution:,ratio-2-max-resolution: -n 'ffmpeg-auto' -- "$@")
+TEMP=$(getopt --options hemd:o: --longoptions help,erase,move,destination:,origin:,max-framerate:,min-framerate:,max-resolution:,ratio-16:9-max-resolution:,ratio-9:16-max-resolution:,ratio-1-max-resolution:,ratio-2-max-resolution: -n 'ffmpeg-auto' -- "$@")
 
 exit_code=$?
 
@@ -92,6 +100,14 @@ while true; do
     -h | --help)
         showHelp
         exit 0
+        ;;
+    -e | --erase)
+        erase_original=true
+        shift 1
+        ;;
+    -m | --move)
+        move=true
+        shift 1
         ;;
     -d | --destination)
         destination="$2"
@@ -173,8 +189,6 @@ for filename in $origin; do
 
     aspect_ratio_string=$(getDisplayAspectRatioString "$filename")
 
-	# This command should be moved to the function
-    #             |------------------------------------------------|
     aspect_ratio=$(echo "$(getDisplayAspectRatio "$filename")" | bc)
 
     width=$(getWidth "$filename")
@@ -295,14 +309,24 @@ for filename in $origin; do
     if [ -n "$options" ]; then
         options="-vf ""$options"
     else
-        cp "$filename" "$destination""/""$aspect_ratio_string""/not_formatted/""${filename##*/}"
-        exit_code="$?"
+        if [ "$move" = true ]; then
+            mv "$filename" "$destination""/""$aspect_ratio_string""/not_formatted/""${filename##*/}"
+            exit_code="$?"
 
-        if [ $exit_code != 0 ]; then
-            echo -e "\e[31mCp did not exit normally!\e[0m"" Copy exit code: $exit_code" >&2
-            exit 1
+            if [ $exit_code != 0 ]; then
+                echo -e "\e[31mMove (mv) did not exit normally!\e[0m"" Move exit code: $exit_code" >&2
+                exit 1
+            fi
+        else
+            cp "$filename" "$destination""/""$aspect_ratio_string""/not_formatted/""${filename##*/}"
+            exit_code="$?"
 
-    fi
+            if [ $exit_code != 0 ]; then
+                echo -e "\e[31mCopy (cp) did not exit normally!\e[0m"" Copy exit code: $exit_code" >&2
+                exit 1
+            fi
+        fi
+
         continue
     fi
 
@@ -313,6 +337,15 @@ for filename in $origin; do
         echo -e "\e[31mFfmpeg did not exit normally!\e[0m"" Ffmpeg exit code: $exit_code" >&2
         exit 1
     fi
-    # Consider making here a delete from origin if the specific option is set, so no duplicates are created and only formatted files remain.
+
+    if [ "$erase_original" = true ]; then
+        rm "$filename"
+        exit_code="$?"
+
+        if [ $exit_code != 0 ]; then
+            echo -e "\e[31mRemove did not exit normally!\e[0m"" rm exit code: $exit_code" >&2
+            exit 1
+        fi
+    fi
 done
 
