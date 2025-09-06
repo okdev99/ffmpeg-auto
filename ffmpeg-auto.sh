@@ -32,7 +32,8 @@ getDisplayAspectRatio() {
 }
 
 getDisplayAspectRatioString() {
-    mediainfo --Inform="Video;%DisplayAspectRatio/String%" "$1"
+    tmp_aspect_ratio_string=$(mediainfo --Inform="Video;%DisplayAspectRatio/String%" "$1")
+    echo "${tmp_aspect_ratio_string/":"/"-"}"
 }
 
 getWidth() {
@@ -199,7 +200,14 @@ for filename in $origin; do
 
     if [ ! -d "$destination""/""$aspect_ratio_string" ]; then
         mkdir -p "$destination""/""$aspect_ratio_string""/formatted"
-        mkdir "$destination""/""$aspect_ratio_string""/not_formatted"
+        exit_code1="$?"
+        mkdir -p "$destination""/""$aspect_ratio_string""/not_formatted"
+        exit_code2="$?"
+
+        if [ $exit_code1 != 0 ] || [ $exit_code2 != 0 ]; then
+            echo -e "\e[31mCreation of directories did not work!\e[0m"" First mkdir exit code: $exit_code1, second $exit_code2" >&2
+            exit 1
+        fi
     fi
 
     # Determine the necessary options for the video
