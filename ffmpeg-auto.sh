@@ -27,6 +27,13 @@ showHelp() {
     echo "correct aspect ratio, then the max-resolution value is used if it was set."
 }
 
+# TODO:
+# 1. when ffmpeg asks to overwrite a file, if the given answer is no, then do not crash the program, but skip that file and move on to the next item on the list
+#
+# It would be better to incorporate these different mediainfo calls into a single call
+# 1. is it possible to use multiple inform options on a single call
+# 2. figure a way to use these calls: if it comes back as a single string -> split by rule, into array
+
 getDisplayAspectRatio() {
     mediainfo --Inform="Video;%DisplayAspectRatio%" "$1"
 }
@@ -179,6 +186,12 @@ else
 fi
 
 for filename in $origin; do
+
+	# check if directory has any files
+	if [ "$filename" == "$origin" ]; then
+		echo -e "\e[1;33mOrigin directory is empty!\e[0m" >&2
+		exit 1
+	fi
 
     # check if filename has the correct extension and if not then just skip it
     if ! echo "${ffmpeg_supported_extensions[@]}" | grep -qw "${filename##*.}"; then
@@ -335,6 +348,7 @@ for filename in $origin; do
             fi
         fi
 
+		echo -e "\e[32mThe file \e[0m"\""\e[32m${filename##*/}\e[0m"\""\e[32m does not need formatting. Skipping.\e[0m"
         continue
     fi
 
