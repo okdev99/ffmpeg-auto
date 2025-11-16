@@ -348,7 +348,7 @@ for filename in $origin; do
             fi
         fi
 
-		echo -e "\e[32mThe file \e[0m"\""\e[32m${filename##*/}\e[0m"\""\e[32m does not need formatting. Skipping.\e[0m"
+		echo -e "\e[32mThe file '${filename##*/}' does not need formatting. Skipping.\e[0m"
         continue
     fi
 
