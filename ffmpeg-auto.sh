@@ -18,6 +18,7 @@ showHelp() {
     echo "      --ratio-2-max-resolution        maximum resolution for only 2.0 ratio video"
     echo "      --ratio-4:3-max-resolution      maximum resolution for only 4:3 ratio video"
     echo "      --ratio-3:4-max-resolution      maximum resolution for only 3:4 ratio video"
+	echo "  -l, --loop                          target duration of formatted video in minutes, achieved by looping"
     echo
     echo "If maximum resolution or framerate is exceeded then a new option is inlcuded that set the formatted video"
     echo "to the maximum specified. The same happens with minimum framerate, but just the otherway."
@@ -61,6 +62,12 @@ getBitrate() {
 	mediainfo --inform="Video;%BitRate%" "$1"
 }
 
+getDuration() {
+	milliseconds=$(mediainfo --inform="Video;%Duration%" "$1")
+	seconds=$((milliseconds/1000))
+	echo "$seconds"
+}
+
 ffmpeg_supported_extensions=("str" "aa" "aac" "aax" "ac3" "acm" "adf" "adp" "dtk" "ads" "ss2" "adx" "aea" "afc" "aix" "al" "ape" "apl" "mac" "aptx" "aptxhd" "aqt" "ast" "obu" "avi" "avr" "avs" "avs2" "avs3" "bfstm" "bcstm" "binka" "bit" "bitpacked" "bmv" "brstm" "cdg" "cdxl" "xl" "c2" "302" "daud" "dfpwm" "dav" "dss" "dts" "dtshd" "dv" "dif" "cdata" "eac3" "paf" "fap" "flm" "flac" "flv" "fsb" "fwse" "g722" "722" "tco" "rco" "g723_1" "g729" "genh" "gsm" "h261" "h26l" "h264" "264" "avc" "hca" "hevc" "h265" "265" "idf" "ifv" "cgi" "ipu" "sf" "ircam" "ivr" "kux" "669" "amf" "ams" "dbm" "digi" "dmf" "dsm" "dtm" "far" "gdm" "ice" "imf" "it" "j2b" "m15" "mdl" "med" "mmcmp" "mms" "mo3" "mod" "mptm" "mt2" "mtm" "nst" "okt" "plm" "ppm" "psm" "pt36" "sptm" "s3m" "sfx" "sfx2" "st26" "stk" "stm" "stp" "ult" "umx" "wow" "xm" "xpk" "dat" "lvf" "m4v" "mkv" "mk3d" "mka" "mks" "webm" "mca" "mcc" "mjpg" "mjpeg" "mpo" "j2k" "mlp" "mods" "moflex" "mov" "mp4" "m4a" "3gp" "3g2" "mj2" "psp" "m4b" "ism" "ismv" "isma" "f4v" "avif" "mp2" "mp3" "m2a" "mpa" "mpc" "mpl2" "sub" "msf" "mtaf" "ul" "musx" "mvi" "mxg" "v" "nist" "sph" "nsp" "nut" "ogg" "oma" "omg" "aa3" "pjs" "pvf" "yuv" "cif" "qcif" "rgb" "rt" "rsd" "rsd" "rso" "sw" "sb" "smi" "sami" "sbc" "msbc" "sbg" "scc" "sdr2" "sds" "sdx" "ser" "sga" "shn" "vb" "son" "imx" "sln" "stl" "sub" "sub" "sup" "svag" "svs" "tak" "thd" "tta" "ans" "art" "asc" "diz" "ice" "nfo" "vt" "ty" "ty+" "uw" "ub" "v210" "yuv10" "vag" "vc1" "rcv" "viv" "idx" "vpk" "txt" "vqf" "vql" "vqe" "vtt" "wsd" "xmv" "xvag" "yop" "y4m" "wav")
 
 erase_original=false
@@ -73,7 +80,7 @@ if [ -z "$1" ]; then
     exit 0
 fi
 
-TEMP=$(getopt --options hemd:o: --longoptions help,erase,move,destination:,origin:,max-framerate:,min-framerate:,max-resolution:,ratio-16:9-max-resolution:,ratio-9:16-max-resolution:,ratio-1-max-resolution:,ratio-2-max-resolution: -n 'ffmpeg-auto' -- "$@")
+TEMP=$(getopt --options hemd:o:l: --longoptions help,erase,move,destination:,origin:,max-framerate:,min-framerate:,max-resolution:,ratio-16:9-max-resolution:,ratio-9:16-max-resolution:,ratio-1-max-resolution:,ratio-2-max-resolution:,loop: -n 'ffmpeg-auto' -- "$@")
 
 exit_code=$?
 
@@ -161,6 +168,10 @@ while true; do
         ratio_34_max_resolution="$2"
         shift 2
         ;;
+	-l | --loop)
+		loop_target=$((60*$2))
+		shift 2
+		;;
     --) shift
         break
         ;;
@@ -169,7 +180,7 @@ while true; do
   esac
 done
 
-if [ -z "$max_framerate" ] && [ -z "$min_framerate" ] && [ -z "$max_resolution" ] && [ -z "$ratio_1_max_resolution" ] && [ -z "$ratio_2_max_resolution" ] && [ -z "$ratio_169_max_resolution" ] && [ -z "$ratio_916_max_resolution" ] && [ -z "$ratio_43_max_resolution" ] && [ -z "$ratio_34_max_resolution" ]; then
+if [ -z "$max_framerate" ] && [ -z "$min_framerate" ] && [ -z "$max_resolution" ] && [ -z "$ratio_1_max_resolution" ] && [ -z "$ratio_2_max_resolution" ] && [ -z "$ratio_169_max_resolution" ] && [ -z "$ratio_916_max_resolution" ] && [ -z "$ratio_43_max_resolution" ] && [ -z "$ratio_34_max_resolution" ] && [ -z "$loop_target" ]; then
     echo -e "\e[1;33mNo options given!\e[0m" >&2
     exit 1
 fi
@@ -199,17 +210,20 @@ for filename in $origin; do
 	fi
 
     unset scale
-    unset options
+    unset out_options
+	unset in_options
 
     aspect_ratio_string=$(getDisplayAspectRatioString "$filename")
 
-    aspect_ratio=$(echo "$(getDisplayAspectRatio "$filename")" | bc)
+    aspect_ratio=$(echo "$(getDisplayAspectRatio '$filename')" | bc) # CHANGED " TO '
 
     width=$(getWidth "$filename")
 
     height=$(getHeight "$filename")
 
     framerate=$(getFramerate "$filename")
+
+	duration=$(getDuration "$filename")
 
     if [ ! -d "$destination""/""$aspect_ratio_string" ]; then
         mkdir -p "$destination""/""$aspect_ratio_string""/formatted"
@@ -224,10 +238,13 @@ for filename in $origin; do
     fi
 
     # Determine the necessary options for the video
+
+	# OUT OPTIONS
+
     if [ -n "$max_framerate" ] && ((max_framerate < framerate)); then
-        options="fps=""$max_framerate"
+        out_options="fps=""$max_framerate"
     elif [ -n "$min_framerate" ] && ((min_framerate > framerate)); then
-        options="fps=""$min_framerate"
+        out_options="fps=""$min_framerate"
     fi
 
     # Check here for different ratio options and if they fail move to max_resolution
@@ -242,7 +259,7 @@ for filename in $origin; do
             fi
             scale="$width:$width"
         fi
-    elif [ -n "$ratio_2_max_resolution" ] && (( $(echo "$aspect_ratio == 2" | bc -l) )); then 
+    elif [ -n "$ratio_2_max_resolution" ] && (( $(echo "$aspect_ratio == 2" | bc -l) )); then
         if ((ratio_2_max_resolution < height)); then
             tmp_width=$(echo "$aspect_ratio*$ratio_2_max_resolution" | bc)
             width=${tmp_width%.*}
@@ -320,16 +337,25 @@ for filename in $origin; do
     fi
 
     if [ -n "$scale" ]; then
-        if [ -n "$options" ]; then
-            options="$options"",scale=""$scale"
+        if [ -n "$out_options" ]; then
+            out_options="$out_options"",scale=""$scale"
         else
-            options="scale=""$scale"
+            out_options="scale=""$scale"
         fi
     fi
 
-    if [ -n "$options" ]; then
-        options="-vf ""$options"
-    else
+	# IN OPTIONS
+
+	if [ -n "$loop_target" ] && ((duration < loop_target)); then
+		loop=$(((loop_target/duration)-1))
+		in_options="-stream_loop $loop"
+	fi
+
+	# FORMATTING
+
+    if [ -n "$out_options" ]; then
+        out_options="-vf ""$out_options"
+    elif [ -z "$in_options" ]; then
         if [ "$move" = true ]; then
             mv "$filename" "$destination""/""$aspect_ratio_string""/not_formatted/""${filename##*/}"
             exit_code="$?"
@@ -352,7 +378,7 @@ for filename in $origin; do
         continue
     fi
 
-    ffmpeg -i "$filename" $options "$destination""/""$aspect_ratio_string""/formatted/""${filename##*/}"
+    ffmpeg $in_options -i "$filename" $out_options "$destination""/""$aspect_ratio_string""/formatted/""${filename##*/}"
 	exit_code="$?"
 
     if [ $exit_code != 0 ]; then
