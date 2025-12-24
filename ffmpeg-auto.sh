@@ -1,4 +1,16 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
+
+# TODO:
+# 1. when ffmpeg asks to overwrite a file, if the given answer is no, then do not crash the program, but skip that file and move on to the next item on the list
+# 1.1 better yet, make a new filename for the formatted file
+#
+# It would be better to incorporate these different mediainfo calls into a single call
+# 1. is it possible to use multiple inform options on a single call
+# 2. figure a way to use these calls: if it comes back as a single string -> split by rule, into array
+
+
+shopt -s extglob
 
 showHelp() {
     # also include a tip for using the program. Like recommended to only use etc.
@@ -19,6 +31,8 @@ showHelp() {
     echo "      --ratio-4:3-max-resolution      maximum resolution for only 4:3 ratio video"
     echo "      --ratio-3:4-max-resolution      maximum resolution for only 3:4 ratio video"
 	echo "  -l, --loop                          target duration of formatted video in minutes, achieved by looping"
+	echo "  -r, --rename                        add a running number (x) to the end of the filename when there is already a file with the same name"
+	echo "      --overwrite                     overwrite the existing file if it has the same filename"
     echo
     echo "If maximum resolution or framerate is exceeded then a new option is inlcuded that set the formatted video"
     echo "to the maximum specified. The same happens with minimum framerate, but just the otherway."
@@ -27,13 +41,6 @@ showHelp() {
     echo "maximum, otherwise if no specific ratio resolution options are set or the video just does not have the"
     echo "correct aspect ratio, then the max-resolution value is used if it was set."
 }
-
-# TODO:
-# 1. when ffmpeg asks to overwrite a file, if the given answer is no, then do not crash the program, but skip that file and move on to the next item on the list
-#
-# It would be better to incorporate these different mediainfo calls into a single call
-# 1. is it possible to use multiple inform options on a single call
-# 2. figure a way to use these calls: if it comes back as a single string -> split by rule, into array
 
 getDisplayAspectRatio() {
     mediainfo --Inform="Video;%DisplayAspectRatio%" "$1"
@@ -68,19 +75,44 @@ getDuration() {
 	echo "$seconds"
 }
 
-ffmpeg_supported_extensions=("str" "aa" "aac" "aax" "ac3" "acm" "adf" "adp" "dtk" "ads" "ss2" "adx" "aea" "afc" "aix" "al" "ape" "apl" "mac" "aptx" "aptxhd" "aqt" "ast" "obu" "avi" "avr" "avs" "avs2" "avs3" "bfstm" "bcstm" "binka" "bit" "bitpacked" "bmv" "brstm" "cdg" "cdxl" "xl" "c2" "302" "daud" "dfpwm" "dav" "dss" "dts" "dtshd" "dv" "dif" "cdata" "eac3" "paf" "fap" "flm" "flac" "flv" "fsb" "fwse" "g722" "722" "tco" "rco" "g723_1" "g729" "genh" "gsm" "h261" "h26l" "h264" "264" "avc" "hca" "hevc" "h265" "265" "idf" "ifv" "cgi" "ipu" "sf" "ircam" "ivr" "kux" "669" "amf" "ams" "dbm" "digi" "dmf" "dsm" "dtm" "far" "gdm" "ice" "imf" "it" "j2b" "m15" "mdl" "med" "mmcmp" "mms" "mo3" "mod" "mptm" "mt2" "mtm" "nst" "okt" "plm" "ppm" "psm" "pt36" "sptm" "s3m" "sfx" "sfx2" "st26" "stk" "stm" "stp" "ult" "umx" "wow" "xm" "xpk" "dat" "lvf" "m4v" "mkv" "mk3d" "mka" "mks" "webm" "mca" "mcc" "mjpg" "mjpeg" "mpo" "j2k" "mlp" "mods" "moflex" "mov" "mp4" "m4a" "3gp" "3g2" "mj2" "psp" "m4b" "ism" "ismv" "isma" "f4v" "avif" "mp2" "mp3" "m2a" "mpa" "mpc" "mpl2" "sub" "msf" "mtaf" "ul" "musx" "mvi" "mxg" "v" "nist" "sph" "nsp" "nut" "ogg" "oma" "omg" "aa3" "pjs" "pvf" "yuv" "cif" "qcif" "rgb" "rt" "rsd" "rsd" "rso" "sw" "sb" "smi" "sami" "sbc" "msbc" "sbg" "scc" "sdr2" "sds" "sdx" "ser" "sga" "shn" "vb" "son" "imx" "sln" "stl" "sub" "sub" "sup" "svag" "svs" "tak" "thd" "tta" "ans" "art" "asc" "diz" "ice" "nfo" "vt" "ty" "ty+" "uw" "ub" "v210" "yuv10" "vag" "vc1" "rcv" "viv" "idx" "vpk" "txt" "vqf" "vql" "vqe" "vtt" "wsd" "xmv" "xvag" "yop" "y4m" "wav")
+runningNumberGenerator() {
+	filename="$1"
+	# regular expression matching *whitespaces(<numerics>).<alphanumerics>
+	re="^.*\s+\([0-9]+\)\.[A-Za-z0-9]+$"
+	while [[ -f $filename ]]; do
+		without_ext="${filename%.*}"
+		ext="${filename##*.}"
+		if [[ $filename =~  $re ]]; then
+			# this following sequence only works on strings that have *([0-9]).*
+			# luckily this blocks conditional regex makes sure it has it :3
+			TMP="${filename##*\(}"
+			running_number="${TMP%%\)*}"
+			((running_number++))
+			filename="${filename%\ \(+([0-9])\).*}" # remove the running number and file ext
+			filename="$filename"" (""$running_number"").""$ext"
+		else
+			filename="$without_ext"" (1).""$ext"
+		fi
+	done
+	echo "$filename"
+}
+
+
+ffmpeg_supported_extensions=("str" "aa" "aac" "aax" "ac3" "acm" "adf" "adp" "dtk" "ads" "ss2" "adx" "aea" "afc" "aix" "al" "ape" "apl" "mac" "aptx" "aptxhd" "aqt" "ast" "obu" "avi" "avr" "avs" "avs2" "avs3" "bfstm" "bcstm" "binka" "bit" "bitpacked" "bmv" "brstm" "cdg" "cdxl" "xl" "c2" "302" "daud" "dfpwm" "dav" "dss" "dts" "dtshd" "dv" "dif" "cdata" "eac3" "paf" "fap" "flm" "flac" "flv" "fsb" "fwse" "g722" "722" "tco" "rco" "g723_1" "g729" "genh" "gsm" "h261" "h26l" "h264" "264" "avc" "hca" "hevc" "h265" "265" "idf" "ifv" "cgi" "ipu" "sf" "ircam" "ivr" "kux" "669" "amf" "ams" "dbm" "digi" "dmf" "dsm" "dtm" "far" "gdm" "ice" "imf" "it" "j2b" "m15" "mdl" "med" "mmcmp" "mms" "mo3" "mod" "mptm" "mt2" "mtm" "nst" "okt" "plm" "ppm" "psm" "pt36" "sptm" "s3m" "sfx" "sfx2" "st26" "stk" "stm" "stp" "ult" "umx" "wow" "xm" "xpk" "dat" "lvf" "m4v" "mkv" "mk3d" "mka" "mks" "webm" "mca" "mcc" "mjpg" "mjpeg" "mpo" "j2k" "mlp" "mods" "moflex" "mov" "mp4" "m4a" "3gp" "3g2" "mj2" "psp" "m4b" "ism" "ismv" "isma" "f4v" "avif" "mp2" "mp3" "m2a" "mpa" "mpc" "mpl2" "sub" "msf" "mtaf" "ul" "musx" "mvi" "mxg" "v" "nist" "sph" "nsp" "nut" "ogg" "oma" "omg" "aa3" "pjs" "pvf" "yuv" "cif" "qcif" "rgb" "rt" "rsd" "rsd" "rso" "sw" "sb" "smi" "sami" "sbc" "msbc" "sbg" "scc" "sdr2" "sds" "sdx" "ser" "sga" "shn" "vb" "son" "imx" "sln" "stl" "sub" "sub" "sup" "svag" "svs" "tak" "thd" "tta" "ans" "art" "asc" "diz" "ice" "nfo" "vt" "ty" "ty+" "uw" "ub" "v210" "yuv10" "vag" "vc1" "rcv" "viv" "idx" "vpk" "vqf" "vql" "vqe" "vtt" "wsd" "xmv" "xvag" "yop" "y4m" "wav")
 
 erase_original=false
 move=false
 origin="."
 destination="."
+rename=false
+overwrite=false
 
 if [ -z "$1" ]; then
     showHelp
     exit 0
 fi
 
-TEMP=$(getopt --options hemd:o:l: --longoptions help,erase,move,destination:,origin:,max-framerate:,min-framerate:,max-resolution:,ratio-16:9-max-resolution:,ratio-9:16-max-resolution:,ratio-1-max-resolution:,ratio-2-max-resolution:,loop: -n 'ffmpeg-auto' -- "$@")
+TEMP=$(getopt --options hemd:o:l:r --longoptions help,erase,move,destination:,origin:,max-framerate:,min-framerate:,max-resolution:,ratio-16:9-max-resolution:,ratio-9:16-max-resolution:,ratio-1-max-resolution:,ratio-2-max-resolution:,loop:,rename,overwrite -n 'ffmpeg-auto' -- "$@")
 
 exit_code=$?
 
@@ -172,6 +204,14 @@ while true; do
 		loop_target=$((60*$2))
 		shift 2
 		;;
+	-r | --rename)
+		rename=true
+		shift 1
+		;;
+	--overwrite)
+		overwrite=true
+		shift 1
+		;;
     --) shift
         break
         ;;
@@ -188,6 +228,11 @@ fi
 if [ -n "$max_framerate" ] && [ -n "$min_framerate" ] && ((max_framerate < min_framerate)); then
     echo -e "\e[1;33mMin framerate cannot be higher than max framerate!\e[0m" >&2
     exit 1
+fi
+
+if [ "$rename" == true ] && [ "$overwrite" == true ]; then
+	echo -e "\e[1;33mRename and overwrite options cannot be used at the same time!\e[0m" >&2
+	exit 1
 fi
 
 if [ ! "${origin:0-1}" == "/" ]; then
@@ -215,7 +260,7 @@ for filename in $origin; do
 
     aspect_ratio_string=$(getDisplayAspectRatioString "$filename")
 
-    aspect_ratio=$(echo "$(getDisplayAspectRatio '$filename')" | bc) # CHANGED " TO '
+    aspect_ratio=$(echo "$(getDisplayAspectRatio "$filename")" | bc) # I know this is technically wrong, but it works like this and otherwise fails. I have no idea why.
 
     width=$(getWidth "$filename")
 
@@ -347,7 +392,7 @@ for filename in $origin; do
 	# IN OPTIONS
 
 	if [ -n "$loop_target" ] && ((duration < loop_target)); then
-		loop=$(((loop_target/duration)-1))
+		loop=$((loop_target/duration))
 		in_options="-stream_loop $loop"
 	fi
 
@@ -356,8 +401,10 @@ for filename in $origin; do
     if [ -n "$out_options" ]; then
         out_options="-vf ""$out_options"
     elif [ -z "$in_options" ]; then
+		output_filename=$( runningNumberGenerator "$destination""/""$aspect_ratio_string""/not_formatted/""${filename##*/}" )
+
         if [ "$move" = true ]; then
-            mv "$filename" "$destination""/""$aspect_ratio_string""/not_formatted/""${filename##*/}"
+            mv "$filename" "$output_filename"
             exit_code="$?"
 
             if [ $exit_code != 0 ]; then
@@ -365,7 +412,7 @@ for filename in $origin; do
                 exit 1
             fi
         else
-            cp "$filename" "$destination""/""$aspect_ratio_string""/not_formatted/""${filename##*/}"
+            cp "$filename" "$output_filename"
             exit_code="$?"
 
             if [ $exit_code != 0 ]; then
@@ -378,7 +425,40 @@ for filename in $origin; do
         continue
     fi
 
-    ffmpeg $in_options -i "$filename" $out_options "$destination""/""$aspect_ratio_string""/formatted/""${filename##*/}"
+
+	# IF OUTPUT FILE ALREADY EXISTS, ASK EITHER TO RENAME OR OVERWRITE
+	# IF OVERWRITE THEN USE -y option
+	# IF RENAME USE running_number_generator FUNCTION AND USE -n OPTIONS
+
+	output_filename="$destination""/""$aspect_ratio_string""/formatted/""${filename##*/}"
+	if [[ -f $output_filename ]]; then
+		if [[ $rename == true ]]; then
+			output_filename=$( runningNumberGenerator "$output_filename" )
+			if [[ -n $in_options ]]; then
+				in_options="$in_options"" -n"
+			else
+				in_options="-n"
+			fi
+		elif [[ $overwrite == true ]]; then
+			if [[ -n $in_options ]]; then
+				in_options="$in_options"" -y"
+			else
+				in_options="-y"
+			fi
+		else
+			# input whether to rename or overwrite
+			if [[ $input == "rename" ]]; then
+				# rename
+				true
+			elif [[ $input == "overwrite" ]]; then
+				# overwrite
+				true
+			fi
+		fi
+	fi
+
+
+    ffmpeg $in_options -i "$filename" $out_options "$output_filename" #output_filename
 	exit_code="$?"
 
     if [ $exit_code != 0 ]; then
