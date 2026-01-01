@@ -448,10 +448,9 @@ for filename in $origin; do
 		else
 			echo -e "\e[1;33mFile with the same name already exists in destination folder!\e[0m"
 			while true; do
-				echo "Either rename it or overwrite it (rename/overwrite): "
-				read -r input
+				read -rp "Either rename it or overwrite it (rename/overwrite): " input
 				input=${input@L} # makes string all lowercase
-				if [[ $input == "rename" ]]; then
+				if [[ $input == "rename" ]] || [[ $input == "r" ]]; then
 					output_filename=$( runningNumberGenerator "$output_filename" )
 					if [[ -n $in_options ]]; then
 						in_options="$in_options"" -n"
@@ -459,7 +458,7 @@ for filename in $origin; do
 						in_options="-n"
 					fi
 					break
-				elif [[ $input == "overwrite" ]]; then
+				elif [[ $input == "overwrite" ]] || [[ $input == "o" ]]; then
 					if [[ -n $in_options ]]; then
 						in_options="$in_options"" -y"
 					else
