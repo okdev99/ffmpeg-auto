@@ -27,6 +27,9 @@ Usage: ffmpeg-auto [OPTION...]
       --ratio-2-max-resolution        maximum resolution for only 2.0 ratio video
       --ratio-4:3-max-resolution      maximum resolution for only 4:3 ratio video
       --ratio-3:4-max-resolution      maximum resolution for only 3:4 ratio video
+  -l, --loop                          target duration of formatted video in minutes, achieved by looping
+  -r, --rename                        add a running number (x) to the end of the filename when there is already a file with the same name
+      --overwrite                     overwrite the existing file if it has the same filename
 
 If maximum resolution or framerate is exceeded then a new option is inlcuded that set the formatted video
 to the maximum specified. The same happens with minimum framerate, but just the otherway.
@@ -34,4 +37,7 @@ to the maximum specified. The same happens with minimum framerate, but just the 
 Ratio specific maximum only apply if the input video has the specified aspect ratio and it is over the
 maximum, otherwise if no specific ratio resolution options are set or the video just does not have the
 correct aspect ratio, then the max-resolution value is used if it was set.
+
+If destination folder has a file with the same as input file and there is no option given [--rename, --overwrite] then the program asks
+user input whether to rename the input file or overwrite the file in destination folder.
 ```

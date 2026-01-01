@@ -2,9 +2,6 @@
 
 
 # TODO:
-# 1. when ffmpeg asks to overwrite a file, if the given answer is no, then do not crash the program, but skip that file and move on to the next item on the list
-# 1.1 better yet, make a new filename for the formatted file
-#
 # It would be better to incorporate these different mediainfo calls into a single call
 # 1. is it possible to use multiple inform options on a single call
 # 2. figure a way to use these calls: if it comes back as a single string -> split by rule, into array
@@ -40,6 +37,9 @@ showHelp() {
     echo "Ratio specific maximum only apply if the input video has the specified aspect ratio and it is over the"
     echo "maximum, otherwise if no specific ratio resolution options are set or the video just does not have the"
     echo "correct aspect ratio, then the max-resolution value is used if it was set."
+    echo
+    echo "If destination folder has a file with the same as input file and there is no option given [--rename, --overwrite] then the program asks"
+    echo "user input whether to rename the input file or overwrite the file in destination folder."
 }
 
 getDisplayAspectRatio() {
