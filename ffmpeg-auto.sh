@@ -2,10 +2,9 @@
 
 
 # TODO:
-# It would be better to incorporate these different mediainfo calls into a single call
-# 1. is it possible to use multiple inform options on a single call
-# 2. figure a way to use these calls: if it comes back as a single string -> split by rule, into array
-
+# 1. It would be better to incorporate these different mediainfo calls into a single call
+# 1.1 is it possible to use multiple inform options on a single call
+# 1.2 figure a way to use these calls: if it comes back as a single string -> split by rule, into array
 
 shopt -s extglob
 
@@ -447,6 +446,8 @@ for filename in $origin; do
 			fi
 		else
 			echo -e "\e[1;33mFile with the same name already exists in destination folder!\e[0m"
+			echo "Input: ""$filename"
+			echo -e "Output: ""$output_filename\n"
 			while true; do
 				read -rp "Either rename it or overwrite it (rename/overwrite): " input
 				input=${input@L} # makes string all lowercase
